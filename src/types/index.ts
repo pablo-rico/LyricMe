@@ -7,6 +7,7 @@ export interface Song {
   created_at: number;   // Timestamp en milisegundos (Date.now())
   updated_at: number;
   bpm?: number;
+  barLength?: number;
 }
 
 export interface LyricSync {
@@ -15,4 +16,5 @@ export interface LyricSync {
   line_number: number;
   timestamp: number;    // El tiempo en segundos (ej: 12.45)
   created_at: number;
+  is_auto?: boolean;
 }

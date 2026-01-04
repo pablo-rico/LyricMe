@@ -1,61 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { db } from './lib/db';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { AudioPlayer } from './components/AudioPlayer';
 import { SyncPanel } from './components/SyncPanel';
 import { LyricsDisplay } from './components/LyricsDisplay';
-import type { Song } from './types';
+import { useLiveQuery } from 'dexie-react-hooks';
 
 type ViewMode = 'edit' | 'perform';
 
 function App() {
-  // Cambiamos el tipo a number para ser compatibles con Dexie
   const [selectedSongId, setSelectedSongId] = useState<number | null>(null);
-  const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [syncsVersion, setSyncsVersion] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('edit');
   const [activeLine, setActiveLine] = useState(0);
 
-  // Efecto para cargar la canción desde Dexie cuando cambia el ID seleccionado
-  useEffect(() => {
-    if (selectedSongId) {
-      loadSong(selectedSongId);
-    } else {
-      setCurrentSong(null);
-    }
-  }, [selectedSongId]);
+  /**
+   * REACTIVIDAD CORE: 
+   * useLiveQuery observa la tabla 'songs'. Si cualquier componente
+   * (como AudioPlayer o Editor) hace un db.songs.update, este objeto
+   * se actualiza automáticamente provocando un re-render de toda la app.
+   */
+  const currentSong = useLiveQuery(
+    async () => {
+      if (!selectedSongId) return null;
+      return await db.songs.get(selectedSongId);
+    },
+    [selectedSongId]
+  );
 
-  async function loadSong(songId: number) {
-    try {
-      // Búsqueda directa en la base de datos local
-      const song = await db.songs.get(songId);
-      if (song) {
-        setCurrentSong(song);
-      }
-    } catch (error) {
-      console.error('Error cargando canción desde Dexie:', error);
-    }
-  }
+  /**
+   * Ya no necesitamos loadSong() ni handleSongSave() manuales para 
+   * actualizar los datos, la DB se encarga de notificar los cambios.
+   */
 
-  // Se dispara cuando el Editor guarda cambios (título o letra)
-  function handleSongSave() {
-    if (selectedSongId) {
-      loadSong(selectedSongId);
-    }
-  }
-
-  // Incrementa la versión para que LyricsDisplay sepa que debe refrescar los syncs
   function handleSyncsChange() {
     setSyncsVersion(v => v + 1);
   }
 
-  // Se dispara desde la Sidebar (creación o eliminación)
+  // Mantenemos esta función por si la Sidebar necesita realizar alguna acción extra
   function handleSongsChange() {
-    if (selectedSongId) {
-      loadSong(selectedSongId);
-    }
+    // La reactividad de useLiveQuery se encarga del resto
   }
 
   return (
@@ -71,12 +57,12 @@ function App() {
         {viewMode === 'edit' ? (
           <>
             <Editor 
-              song={currentSong} 
-              onSave={handleSongSave} 
+              song={currentSong || null} 
+              onSave={() => {}} // No requiere carga manual ahora
               onLineChange={(line) => setActiveLine(line)} 
             />
             <SyncPanel
-              song={currentSong}
+              song={currentSong || null}
               currentTime={currentTime}
               onSyncsChange={handleSyncsChange}
               selectedLineFromEditor={activeLine}
@@ -84,7 +70,7 @@ function App() {
           </>
         ) : (
           <LyricsDisplay
-            song={currentSong}
+            song={currentSong || null}
             currentTime={currentTime}
             syncsVersion={syncsVersion}
           />
@@ -92,7 +78,7 @@ function App() {
       </div>
 
       <AudioPlayer
-        song={currentSong}
+        song={currentSong || null}
         onTimeUpdate={setCurrentTime}
         onAudioLoaded={() => {}}
       />

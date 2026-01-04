@@ -8,6 +8,7 @@ export interface Song {
   audio_url?: string;
   audioFile?: Blob;
   bpm?: number;
+  barLength?: number;
   created_at: number;
   updated_at: number;
 }
@@ -18,6 +19,7 @@ export interface LyricSync {
   line_number: number;
   timestamp: number;
   created_at: number;
+  is_auto?: boolean;
 }
 
 export class AppDatabase extends Dexie {

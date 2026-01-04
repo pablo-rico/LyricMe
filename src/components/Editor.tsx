@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
-import { Save } from 'lucide-react';
-import { db } from '../lib/db'; // Importamos nuestra DB de Dexie
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { Save, Check, Cloud } from 'lucide-react';
+import { db } from '../lib/db';
 import type { Song } from '../types';
 
 interface EditorProps {
@@ -13,15 +13,68 @@ export function Editor({ song, onSave, onLineChange }: EditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sincronizar estado local cuando cambia la canción seleccionada
+  // 1. Función de guardado memorizada
+  const handleSave = useCallback(async (currentTitle: string, currentContent: string) => {
+    if (!song || !song.id) return;
+
+    setSaveStatus('saving');
+    try {
+      await db.songs.update(song.id, {
+        title: currentTitle,
+        content: currentContent,
+        updated_at: Date.now()
+      });
+      setSaveStatus('saved');
+      onSave();
+      
+      // Volver al estado normal después de 2 segundos
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      console.error('Error saving to Dexie:', error);
+      setSaveStatus('idle');
+    }
+  }, [song, onSave]);
+
+  // 2. Efecto para Atajo Ctrl + S
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault(); // Evita que el navegador intente guardar la página
+        handleSave(title, content);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [title, content, handleSave]);
+
+  // 3. Efecto para Auto-save (Debounce)
+  useEffect(() => {
+    // Si los valores son iguales a los de la canción cargada, no disparamos el autosave
+    if (!song || (title === song.title && content === song.content)) return;
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+
+    saveTimeoutRef.current = setTimeout(() => {
+      handleSave(title, content);
+    }, 1500); // Guarda después de 1.5 segundos de inactividad
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [title, content, song, handleSave]);
+
+  // Sincronizar estado local al cambiar de canción
   useEffect(() => {
     if (song) {
       setTitle(song.title);
       setContent(song.content);
+      setSaveStatus('idle');
     }
   }, [song]);
 
@@ -34,30 +87,9 @@ export function Editor({ song, onSave, onLineChange }: EditorProps) {
     onLineChange(currentLine);
   };
 
-  async function handleSave() {
-    if (!song || !song.id) return;
-
-    setIsSaving(true);
-    try {
-      // Usamos db.songs.update de Dexie
-      await db.songs.update(song.id, {
-        title,
-        content,
-        updated_at: Date.now() // Timestamp local en milisegundos
-      });
-
-      setLastSaved(new Date());
-      onSave(); // Avisar al padre para refrescar la lista si es necesario
-    } catch (error) {
-      console.error('Error saving to Dexie:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   if (!song) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 text-gray-500">
+      <div className="flex-1 flex items-center justify-center bg-gray-50 text-gray-500 italic">
         Selecciona una canción para empezar a editar
       </div>
     );
@@ -73,19 +105,33 @@ export function Editor({ song, onSave, onLineChange }: EditorProps) {
           className="text-lg font-semibold outline-none flex-1 mr-4 text-slate-900"
           placeholder="Título de la canción"
         />
-        <div className="flex items-center gap-3">
-          {lastSaved && (
-            <span className="text-xs text-slate-500">
-              Local: {lastSaved.toLocaleTimeString()}
-            </span>
-          )}
+        
+        <div className="flex items-center gap-4">
+          {/* Indicador de estado visual */}
+          <div className="flex items-center gap-2 text-xs font-medium transition-all duration-300">
+            {saveStatus === 'saving' && (
+              <span className="text-blue-500 flex items-center gap-1 animate-pulse">
+                <Cloud size={14} /> Guardando...
+              </span>
+            )}
+            {saveStatus === 'saved' && (
+              <span className="text-emerald-500 flex items-center gap-1">
+                <Check size={14} /> Guardado
+              </span>
+            )}
+            {saveStatus === 'idle' && song.updated_at && (
+              <span className="text-slate-400">
+                Auto-save activo
+              </span>
+            )}
+          </div>
+
           <button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded transition-colors hover:bg-blue-700 disabled:bg-blue-400 text-sm font-medium"
+            onClick={() => handleSave(title, content)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors text-sm font-medium"
           >
             <Save size={16} />
-            {isSaving ? 'Guardando...' : 'Guardar Local'}
+            <span className="hidden sm:inline">Ctrl+S</span>
           </button>
         </div>
       </div>
@@ -100,8 +146,8 @@ export function Editor({ song, onSave, onLineChange }: EditorProps) {
           }}
           onSelect={handleCursorMove}
           onKeyUp={handleCursorMove}
-          className="w-full h-full outline-none resize-none font-mono text-sm leading-relaxed text-slate-700"
-          placeholder="Escribe las letras de tu canción aquí..."
+          className="w-full h-full outline-none resize-none font-mono text-base leading-relaxed text-slate-700"
+          placeholder="Escribe las letras aquí..."
         />
       </div>
     </div>
