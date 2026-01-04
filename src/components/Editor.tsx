@@ -12,7 +12,6 @@ interface EditorProps {
 export function Editor({ song, onSave, onLineChange }: EditorProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
