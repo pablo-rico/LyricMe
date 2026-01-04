@@ -8,6 +8,7 @@ export interface Song {
   audio_url?: string;
   audioFile?: Blob;
   bpm?: number;
+  waveform?: number[];
   barLength?: number;
   created_at: number;
   updated_at: number;

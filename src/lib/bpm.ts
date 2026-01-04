@@ -32,3 +32,24 @@ export async function analyzeBPM(audioFile: Blob): Promise<number> {
 
     return bpm > 200 ? bpm / 2 : bpm; // Corrección básica de doble tempo
 }
+
+export async function getWaveformData(audioFile: Blob, points: number = 100): Promise<number[]> {
+  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const arrayBuffer = await audioFile.arrayBuffer();
+  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  
+  const rawData = audioBuffer.getChannelData(0); // Canal 1
+  const samplesPerPoint = Math.floor(rawData.length / points);
+  const peaks = [];
+
+  for (let i = 0; i < points; i++) {
+    const start = i * samplesPerPoint;
+    let max = 0;
+    for (let j = 0; j < samplesPerPoint; j++) {
+      const amplitude = Math.abs(rawData[start + j]);
+      if (amplitude > max) max = amplitude;
+    }
+    peaks.push(max);
+  }
+  return peaks;
+}

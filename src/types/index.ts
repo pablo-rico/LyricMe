@@ -8,6 +8,7 @@ export interface Song {
   updated_at: number;
   bpm?: number;
   barLength?: number;
+  waveform?: number[];
 }
 
 export interface LyricSync {

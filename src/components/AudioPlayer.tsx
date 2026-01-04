@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Play, Pause, Upload, SkipBack, SkipForward, Settings, ChevronUp } from 'lucide-react';
 import { db } from '../lib/db';
 import type { Song } from '../types';
-import { analyzeBPM } from '../lib/bpm';
+import { analyzeBPM, getWaveformData } from '../lib/bpm';
 
 interface AudioPlayerProps {
   song: Song | null;
@@ -79,9 +79,12 @@ export function AudioPlayer({ song, onTimeUpdate, onAudioLoaded }: AudioPlayerPr
     if (!file || !song?.id) return;
     try {
       const detectedBPM = await analyzeBPM(file);
+      const waveform = await getWaveformData(file);
+
       await db.songs.update(song.id, {
         audioFile: file,
         bpm: detectedBPM,
+        waveform: waveform,
         barLength: 8, // Default al subir
         updated_at: Date.now(),
       });
@@ -132,12 +135,41 @@ export function AudioPlayer({ song, onTimeUpdate, onAudioLoaded }: AudioPlayerPr
             </button>
             <button onClick={() => skipTime(5)} className="p-2 text-slate-400 hover:text-slate-600"><SkipForward size={20} /></button>
           </div>
+          <div className="flex items-center gap-2">
+            {formatTime(currentTime)}
+          </div>
+          
+          <div className="flex-1 relative flex items-center h-12 w-full mx-4">
+            {/* Visualización de Waveform de fondo */}
+            <div className="absolute inset-0 flex items-center justify-between gap-[2px] px-1 pointer-events-none">
+              {song.waveform?.map((peak, i) => {
+                const progress = (currentTime / duration) * 100;
+                const isPlayed = (i / song.waveform!.length) * 100 < progress;
+                return (
+                  <div
+                    key={i}
+                    className={`flex-1 rounded-full transition-colors duration-300 ${
+                      isPlayed ? 'bg-blue-500' : 'bg-slate-200'
+                    }`}
+                    style={{ height: `${Math.max(15, peak * 100)}%` }}
+                  />
+                );
+              })}
+            </div>
 
-          {/* Progress Bar */}
-          <div className="flex-1 flex items-center gap-3">
-            <span className="text-xs font-mono text-slate-400 w-10 text-right">{formatTime(currentTime)}</span>
-            <input type="range" min="0" max={duration || 0} value={currentTime} onChange={(e) => audioRef.current && (audioRef.current.currentTime = parseFloat(e.target.value))} className="flex-1 h-1 bg-slate-100 rounded-full appearance-none cursor-pointer accent-blue-600" />
-            <span className="text-xs font-mono text-slate-400 w-10">{formatTime(duration)}</span>
+            {/* Slider Transparente encima de la onda */}
+            <input
+              type="range"
+              min="0"
+              max={duration || 0}
+              value={currentTime}
+              onChange={(e) => audioRef.current && (audioRef.current.currentTime = parseFloat(e.target.value))}
+              className="absolute inset-0 w-full h-full bg-transparent appearance-none cursor-pointer z-10 accent-transparent"
+              style={{
+                // Ocultamos la barra del sistema pero mantenemos el thumb si lo deseas
+                WebkitAppearance: 'none'
+              }}
+            />
           </div>
 
           {/* Configuración y BPM */}
