@@ -7,6 +7,7 @@ export interface Song {
   content: string;
   audio_url?: string;
   audioFile?: Blob;
+  bpm?: number;
   created_at: number;
   updated_at: number;
 }

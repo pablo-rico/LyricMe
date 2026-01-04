@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { Play, Pause, Upload, SkipBack, SkipForward } from 'lucide-react';
 import { db } from '../lib/db'; // Tu nueva configuración de Dexie
 import type { Song } from '../types';
+import { analyzeBPM } from '../lib/bpm';
 
 
 
@@ -95,21 +96,25 @@ export function AudioPlayer({ song, onTimeUpdate, onAudioLoaded }: AudioPlayerPr
     if (!file || !song?.id) return;
 
     try {
-      // 1. Guardar el archivo real en el campo audioFile
+      // 1. Analizar BPM (esto puede tardar 1-2 segundos)
+      const detectedBPM = await analyzeBPM(file);
+
+      // 2. Guardar archivo y BPM en Dexie
       await db.songs.update(song.id, {
         audioFile: file,
+        bpm: detectedBPM, // Guardamos el dato
         updated_at: Date.now()
       });
 
-      // 2. Actualizar la URL local inmediatamente para que suene
+      // 3. Actualizar UI
       const objectUrl = URL.createObjectURL(file);
       setAudioUrl(objectUrl);
       
-      if (audioRef.current) {
-        audioRef.current.load();
-      }
+      // Podrías pasar el BPM hacia arriba si quieres mostrarlo
+      console.log("BPM Detectado:", detectedBPM);
+      
     } catch (error) {
-      console.error('Error al guardar el audio localmente:', error);
+      console.error('Error al procesar audio:', error);
     }
   }
 
@@ -162,6 +167,7 @@ export function AudioPlayer({ song, onTimeUpdate, onAudioLoaded }: AudioPlayerPr
             <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-blue-600 transition-colors" title="Reemplazar archivo">
               <Upload size={18} />
             </button>
+            <label>{song.bpm} BPM</label>
             <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFileUpload} className="hidden" />
           </div>
         </div>

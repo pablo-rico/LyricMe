@@ -6,6 +6,7 @@ export interface Song {
   audioFile?: Blob;     // El archivo real guardado en el navegador
   created_at: number;   // Timestamp en milisegundos (Date.now())
   updated_at: number;
+  bpm?: number;
 }
 
 export interface LyricSync {
