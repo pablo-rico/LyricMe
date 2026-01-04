@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Upload, SkipBack, SkipForward, Settings, ChevronUp } from 'lucide-react';
+import { Play, Pause, Upload, SkipBack, SkipForward, Settings } from 'lucide-react';
 import { db } from '../lib/db';
 import type { Song } from '../types';
 import { analyzeBPM, getWaveformData } from '../lib/bpm';

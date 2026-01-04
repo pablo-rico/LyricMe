@@ -31,28 +31,38 @@ export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplay
   const computedSyncs = useMemo(() => {
     if (!song) return [];
     const lines = song.content.split('\n');
-    const secondsPerBar = (isBpmEnabled && song.bpm) ? (60 / song.bpm) * (song.barLength ?? 8) : 0;
+    
+    // Calculamos la duración de 1 intervalo (según barLength)
+    const secondsPerInterval = (isBpmEnabled && song.bpm) ? (60 / song.bpm) * (song.barLength ?? 8) : 0;
+    
     const syncMap = new Map(manualSyncs.map(s => [s.line_number, s.timestamp]));
     
-    let lastManualTime = -1;
-    let lastManualLine = -1;
+    let currentAnchorTime = -1;
+    let currentAnchorLine = -1;
 
     return lines.map((_, index) => {
+      // Si esta línea tiene una marca manual, actualizamos el "Ancla"
       if (syncMap.has(index)) {
-        lastManualTime = syncMap.get(index)!;
-        lastManualLine = index;
-        return { timestamp: lastManualTime, is_auto: false };
+        currentAnchorTime = syncMap.get(index)!;
+        currentAnchorLine = index;
+        return { timestamp: currentAnchorTime, is_auto: false };
       }
-      if (secondsPerBar > 0 && lastManualTime !== -1) {
-        const diff = index - lastManualLine;
+
+      // Si no tiene marca, pero tenemos un ancla previa y el BPM activo
+      if (secondsPerInterval > 0 && currentAnchorTime !== -1) {
+        const linesSinceLastAnchor = index - currentAnchorLine;
+        
         return { 
-          timestamp: lastManualTime + (diff * secondsPerBar),
+          // Referencia SIEMPRE relativa a la ULTIMA marca encontrada
+          timestamp: currentAnchorTime + (linesSinceLastAnchor * secondsPerInterval),
           is_auto: true 
         };
       }
+
+      // Si aún no hemos encontrado la primera marca manual
       return { timestamp: 999999, is_auto: false };
     });
-  }, [song, manualSyncs, isBpmEnabled]);
+  }, [song?.content, song?.bpm, song?.barLength, manualSyncs, isBpmEnabled]);
 
   const currentLineIndex = useMemo(() => {
     let activeIndex = -1;
