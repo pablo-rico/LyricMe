@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { db } from '../lib/db';
-import { Zap, ZapOff } from 'lucide-react'; // Iconos para el estado del BPM
+import { Zap, ZapOff, Eye, EyeOff } from 'lucide-react'; // Añadimos Eye para visibilidad
 import type { Song, LyricSync } from '../types';
 
 interface LyricsDisplayProps {
@@ -11,7 +11,8 @@ interface LyricsDisplayProps {
 
 export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplayProps) {
   const [manualSyncs, setManualSyncs] = useState<LyricSync[]>([]);
-  const [isBpmEnabled, setIsBpmEnabled] = useState(true); // Estado para el auto-relleno
+  const [isBpmEnabled, setIsBpmEnabled] = useState(true);
+  const [highVisibility, setHighVisibility] = useState(false); // Estado para visibilidad total
   const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
@@ -27,12 +28,9 @@ export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplay
     setManualSyncs(data);
   }
 
-  // --- LÓGICA DE INTERPOLACIÓN DINÁMICA ---
   const computedSyncs = useMemo(() => {
     if (!song) return [];
     const lines = song.content.split('\n');
-    
-    // Solo calculamos intervalos si el BPM está activo y existe en la canción
     const secondsPerBar = (isBpmEnabled && song.bpm) ? (60 / song.bpm) * (song.barLength ?? 8) : 0;
     const syncMap = new Map(manualSyncs.map(s => [s.line_number, s.timestamp]));
     
@@ -40,14 +38,11 @@ export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplay
     let lastManualLine = -1;
 
     return lines.map((_, index) => {
-      // 1. Prioridad: Marca manual
       if (syncMap.has(index)) {
         lastManualTime = syncMap.get(index)!;
         lastManualLine = index;
         return { timestamp: lastManualTime, is_auto: false };
       }
-
-      // 2. Interpolación rítmica (si está activada)
       if (secondsPerBar > 0 && lastManualTime !== -1) {
         const diff = index - lastManualLine;
         return { 
@@ -55,8 +50,6 @@ export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplay
           is_auto: true 
         };
       }
-
-      // 3. Sin tiempo asignado (valor muy alto para que no se active)
       return { timestamp: 999999, is_auto: false };
     });
   }, [song, manualSyncs, isBpmEnabled]);
@@ -86,28 +79,48 @@ export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplay
 
   return (
     <div className="relative flex-1 bg-[#0a0c10] overflow-y-auto scroll-smooth">
-      {/* BOTÓN FLOTANTE: Toggle BPM */}
-      <button
-        onClick={() => setIsBpmEnabled(!isBpmEnabled)}
-        className={`fixed bottom-24 right-8 z-50 p-4 rounded-full shadow-2xl transition-all duration-500 ease-in-out flex items-center group h-14 ${
-          isBpmEnabled 
-            ? 'bg-blue-600 text-white hover:bg-blue-500' 
-            : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-        }`}
-        title={isBpmEnabled ? "Desactivar Auto-BPM" : "Activar Auto-BPM"}
-      >
-        {/* Icono con contenedor fijo para evitar que se mueva durante la expansión */}
-        <div className="flex-shrink-0">
-          {isBpmEnabled ? <Zap size={22} fill="currentColor" /> : <ZapOff size={22} />}
-        </div>
-
-        {/* Contenedor de texto animado */}
-        <span className="max-w-0 overflow-hidden transition-all duration-500 ease-in-out group-hover:max-w-[200px] whitespace-nowrap">
-          <span className="pl-3 text-xs font-black uppercase tracking-[0.15em]">
-            {isBpmEnabled ? "Smart Sync ON" : "Manual Mode"}
+      
+      {/* GRUPO DE BOTONES FLOTANTES */}
+      <div className="fixed bottom-24 right-8 z-50 flex flex-col gap-4">
+        
+        {/* BOTÓN 1: Alta Visibilidad */}
+        <button
+          onClick={() => setHighVisibility(!highVisibility)}
+          className={`p-4 rounded-full shadow-2xl transition-all duration-500 ease-in-out flex items-center group h-14 ${
+            highVisibility 
+              ? 'bg-emerald-600 text-white hover:bg-emerald-500' 
+              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+          }`}
+        >
+          <div className="flex-shrink-0">
+            {highVisibility ? <Eye size={22} /> : <EyeOff size={22} />}
+          </div>
+          <span className="max-w-0 overflow-hidden transition-all duration-500 ease-in-out group-hover:max-w-[200px] whitespace-nowrap">
+            <span className="pl-3 text-xs font-black uppercase tracking-[0.15em]">
+              {highVisibility ? "Visibilidad ON" : "Modo Enfoque"}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+
+        {/* BOTÓN 2: Toggle BPM */}
+        <button
+          onClick={() => setIsBpmEnabled(!isBpmEnabled)}
+          className={`p-4 rounded-full shadow-2xl transition-all duration-500 ease-in-out flex items-center group h-14 ${
+            isBpmEnabled 
+              ? 'bg-blue-600 text-white hover:bg-blue-500' 
+              : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+          }`}
+        >
+          <div className="flex-shrink-0">
+            {isBpmEnabled ? <Zap size={22} fill="currentColor" /> : <ZapOff size={22} />}
+          </div>
+          <span className="max-w-0 overflow-hidden transition-all duration-500 ease-in-out group-hover:max-w-[200px] whitespace-nowrap">
+            <span className="pl-3 text-xs font-black uppercase tracking-[0.15em]">
+              {isBpmEnabled ? "Smart Sync ON" : "Manual Mode"}
+            </span>
+          </span>
+        </button>
+      </div>
 
       {/* CONTENIDO DE LA LETRA */}
       <div className="max-w-4xl mx-auto py-60 px-12">
@@ -135,7 +148,10 @@ export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplay
                 transition-all duration-700 ease-out py-6 px-8 rounded-2xl mb-4 text-4xl font-bold tracking-tight
                 ${isActive 
                   ? 'text-white bg-white/5 shadow-[0_0_40px_-15px_rgba(59,130,246,0.5)] opacity-100 scale-100 translate-x-4' 
-                  : 'text-slate-700 opacity-20 scale-95 translate-x-0'}
+                  : highVisibility 
+                    ? 'text-white opacity-60 scale-95 translate-x-0' // Modo Blanco Visible
+                    : 'text-slate-700 opacity-20 scale-95 translate-x-0' // Modo Enfoque Oscuro
+                }
               `}
             >
               <div className="flex items-center gap-4">
@@ -150,7 +166,6 @@ export function LyricsDisplay({ song, currentTime, syncsVersion }: LyricsDisplay
           );
         })}
       </div>
-      
     </div>
   );
 }
