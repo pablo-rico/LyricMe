@@ -16,6 +16,8 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('edit');
   const [activeLine, setActiveLine] = useState(0);
 
+  
+
   /**
    * REACTIVIDAD CORE: 
    * useLiveQuery observa la tabla 'songs'. Si cualquier componente
